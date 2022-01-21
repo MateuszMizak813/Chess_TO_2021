@@ -15,7 +15,7 @@ class main():
         pygame.init()
 
         # Ustawienia ekranu i zainicjowanie niezbędnych elementów
-        self.__chess_window = pygame.display.set_mode((640,640))
+        self.__chess_window = pygame.display.set_mode((640,700))
         self.__chess_window.fill((255,255,255))
         self.__clock = pygame.time.Clock()
         self.__chess_board = ChessBoard(self.__chess_window)

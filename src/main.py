@@ -15,7 +15,7 @@ class main():
         pygame.init()
 
         # Ustawienia ekranu i zainicjowanie niezbędnych elementów
-        self.__chess_window = pygame.display.set_mode((640,700))
+        self.__chess_window = pygame.display.set_mode((640,640))
         self.__chess_window.fill((255,255,255))
         self.__clock = pygame.time.Clock()
         self.__chess_board = ChessBoard(self.__chess_window)
@@ -51,6 +51,12 @@ class main():
                         column = position[0] // con.field_size
                         row = position[1] // con.field_size
                         self.__chess_board.leftClickOnChessBoard(row,column)
+
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_LEFT:
+                        self.__chess_board.undo()
+                    if event.key == pygame.K_RIGHT:
+                        self.__chess_board.forward()
         
             # Odświeżanie obrazu
             self.__clock.tick(15)

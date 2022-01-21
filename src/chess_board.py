@@ -15,7 +15,10 @@ class ChessBoard():
         self.__selected_piece = False
         self.__game_history = GameHistory()
         self.__player_turn = "w"
+        self.__game_ended = False
+        self.__avaible_moves = []
         self.drawBoard()
+        self.drawPieces()
 
 
     """
@@ -44,6 +47,8 @@ class ChessBoard():
         for i in range(8):
             for j in range(8):
                 pygame.draw.rect(self.__screen, self.__colors[(i+j)%2], pygame.Rect(i*con.field_size, j*con.field_size, con.field_size, con.field_size))
+        
+    def drawPieces(self):
         for row in self.__pieces_list:
             for piece in row:
                 if piece != 'x' and piece.isAlive():
@@ -58,61 +63,166 @@ class ChessBoard():
         if self.__selected_piece == False and clicked_field != 'x':
             if clicked_field.getColor() == self.__player_turn:
                 self.__selected_piece = clicked_field
-                print("Zaznaczyłeś "+clicked_field.getName())
+                self.__avaible_moves = self.__selected_piece.getAvaibleMoves(self.__pieces_list)
+                self.drawBoard()
+                for move in self.__avaible_moves:
+                    end = move.getEnd()
+                    pygame.draw.circle(self.__screen, "green", (end[1]*con.field_size + con.field_size/2, end[0]*con.field_size + con.field_size/2), 0.4*con.field_size)
+                self.drawPieces()
 
         elif self.__selected_piece == clicked_field:
             self.__selected_piece = False
+            self.__avaible_moves.clear()
             self.drawBoard()
+            self.drawPieces()
             
 
         elif self.__selected_piece != False:
-            print("Chcesz ruszyć z",self.__selected_piece.getField(),"na ", (row,column))
             #przypisanie potrzebnych zmiennych
             start_position = self.__selected_piece.getField()
             captured_piece = self.__pieces_list[row][column]
 
             #Save planned Move and check if possible
             move = SavedMove(start_position,(row,column), self.__selected_piece, captured_piece)
-            list_of_moves = self.__selected_piece.getAvaibleMoves(self.__pieces_list)
-            print(list_of_moves)
-            if move in list_of_moves:
+            if move in self.__avaible_moves:
                 #Zamiana pozycji
                 self.__pieces_list[start_position[0]][start_position[1]] = "x"
                 self.__pieces_list[row][column] = self.__selected_piece
                 self.__selected_piece.move((row,column))
                 
-                #Odświeżenie obrazu
-                self.drawBoard()
-
                 #Zapisanie ruchu w historii
                 self.__game_history.addMove(move)
 
                 #"Zbicie" pionka jesli pole bylo zajmowane i odznaczenie pionka
-                self.__selected_piece = False
                 if captured_piece != "x":
                     captured_piece.setAlive(False)
+
+                if self.__player_turn == "w":
+                    check, king = self.checkForChecks("b")
+                else:
+                    check, king = self.checkForChecks("w")
 
                 if self.__player_turn == "w":
                     self.__player_turn = "b"
                 else:
                     self.__player_turn = "w"
+
+                if check:
+                    self.undo(True)
+                    print("Niedozwolony ruch - zagrożony król")
+                    self.__selected_piece = False
+                    self.__avaible_moves.clear()
+                    self.drawBoard()
+                    pos = king.getField()
+                    pygame.draw.circle(self.__screen, "red", (pos[1]*con.field_size + con.field_size/2, pos[0]*con.field_size + con.field_size/2), 0.4*con.field_size)
+                    self.drawPieces()
+
+                else:
+                    self.__selected_piece = False
+                    #Odświeżenie obrazu
+                    self.drawBoard()
+                    if self.__player_turn == "w":
+                        check,king = self.checkForChecks("b")
+                    else:
+                        check,king = self.checkForChecks("w")
+                    avaible = self.checkForAvaibleMoves(self.__player_turn)
+                    if check:
+                        self.drawBoard()
+                        pos = king.getField()
+                        pygame.draw.circle(self.__screen, "red", (pos[1]*con.field_size + con.field_size/2, pos[0]*con.field_size + con.field_size/2), 0.4*con.field_size)
+                        self.drawPieces()
+                        if avaible == False:
+                            print(self.__player_turn,"Lost")
+                    else:
+                        self.drawBoard()
+                        self.drawPieces()
+                        if avaible == False:
+                            print("Draw")
             else:
                 print("Niedozwolony ruch")
+                self.__avaible_moves.clear()
+                self.__selected_piece = False
+        self.__game_history.clearForward()
 
 
-    def undo(self):
-        move = self.__game_history.undoMove()
-        start = move.getStart()
-        end = move.getEnd()
-        captured = move.getCaptured()
-        moved = move.getMoved()
-        self.__pieces_list[start[0]][start[1]] = moved
-        self.__pieces_list[end[0]][end[1]] = captured
-        moved.move(start)
-        moved.undoIfMoved()
-        if captured != "x":
-            captured.setAlive(True)
-        self.drawBoard()
+    def undo(self, ifcheck = False):
+        move = self.__game_history.undoMove(ifcheck)
+        if move != None:
+            start = move.getStart()
+            end = move.getEnd()
+            captured = move.getCaptured()
+            moved = move.getMoved()
+            self.__pieces_list[start[0]][start[1]] = moved
+            self.__pieces_list[end[0]][end[1]] = captured
+
+            moved.undoMove(start)
+
+            if captured != "x":
+                captured.setAlive(True)
+            self.drawBoard()
+            self.drawPieces()
+
+            #Zamiana Tury
+            if self.__player_turn == "w":
+                self.__player_turn = "b"
+            else:
+                self.__player_turn = "w"
+
+    def forward(self):
+        move = self.__game_history.forwardMove()
+        if move != None:
+            start = move.getStart()
+            end = move.getEnd()
+            captured = move.getCaptured()
+            moved = move.getMoved()
+            self.__pieces_list[end[0]][end[1]] = moved
+
+            moved.move(end)
+
+            if captured != "x":
+                captured.setAlive(False)
+            self.drawBoard()
+            self.drawPieces()
+
+            #Zamiana Tury
+            if self.__player_turn == "w":
+                self.__player_turn = "b"
+            else:
+                self.__player_turn = "w"
+
+    def checkForChecks(self, color): #color = color of pieces that can check
+        avaible_moves = []
+        enemy_king = None
+        check = False
+        for row in self.__pieces_list:
+            for piece in row:
+                if piece != "x" and piece.getColor() != color and piece.getName() == "King":
+                    enemy_king = piece
+                elif piece != "x" and piece.getColor() == color:
+                    moves = piece.getAvaibleMoves(self.__pieces_list)
+                    for move in moves:
+                        avaible_moves.append(move)
+                        if move.getCaptured() != "x" and move.getCaptured().getName() == "King":
+                            check = True
+        if check == False:
+            return check, enemy_king
+        if check == True:
+            return check, enemy_king
+
+    def checkForAvaibleMoves(self, color):
+        avaible_moves = []
+        for row in self.__pieces_list:
+            for piece in row:
+                if piece != "x" and piece.getColor() == color:
+                    moves = piece.getAvaibleMoves(self.__pieces_list)
+                    for move in moves:
+                        avaible_moves.append(move)
+        print(len(avaible_moves))
+        return len(avaible_moves) != 0
 
 
+    def draw(self):
+        pass
 
+    def checkmate(self):
+        pass

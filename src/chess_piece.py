@@ -17,7 +17,6 @@ class ChessPiece():
         self.__color = color
         self.__has_moved = 0
 
-
     def drawSelf(self):
         self.__screen.blit(self.__piece_type.getImage(self.__color), pygame.Rect(self.__column*con.field_size, self.__row*con.field_size, con.field_size, con.field_size))
 
@@ -49,11 +48,8 @@ class ChessPiece():
         self.__column = last_positions[1]
         self.__has_moved -= 1
 
-
     def didMove(self):
         return self.__has_moved != 0 
-
-
 
 
 class PieceType():
@@ -78,6 +74,8 @@ class Pawn(PieceType):
             for i in [1,2]:
                 if -1 < s_row + mod*i < 8 and board[s_row + mod*i][s_col] == "x":
                     list_of_moves.append(SavedMove((s_row, s_col), (s_row + mod*i, s_col), piece, board[s_row + mod*i][s_col]))
+                else:
+                    break
         for i in [-1,1]:
             if -1 < s_col +i < 8 and -1 < s_row + mod < 8:
                 if board[s_row + mod][s_col + i] != "x" and board[s_row + mod][s_col + i].getColor() != piece.getColor():

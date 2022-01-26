@@ -2,15 +2,17 @@ import pygame
 import constants as con
 from chess_piece import *
 from game_state import GameHistory
-import time
-
+import random
 """
 Klasa Szachownicy, odpowiedzialna za przechowywanie pionków, wszystkie aspekty graficzne, oraz funkcjonalność pomiędzy pionkami.
 """
 class ChessBoard():
-    def __init__(self, screen, light_color = 'white', dark_color = 'brown') -> None:
+    def __init__(self, screen, light_color = 'white', dark_color = 'brown', againstAi = False) -> None:
         self.__screen = screen
         self.__colors = [light_color, dark_color]
+        self.__againstAi = againstAi
+        if self.__againstAi:
+            self.__chess_bot = ChessBot(self)
         self.__pieces_list = self.generatePieceList()
         self.__kings = {"w": self.__pieces_list[7][4], "b": self.__pieces_list[0][4]}
         self.__special_moves = {"short_castle": [SavedMove((x,4),(x,6),self.__pieces_list[x][4],"x") for x in [0,7]],
@@ -20,7 +22,6 @@ class ChessBoard():
         self.__player_turn = "w"
         self.__game_ended = False
         self.__avaible_moves = self.checkForValidMoves(self.__player_turn)
-        print(self.__special_moves)
         self.drawBoard()
         self.drawPieces()
 
@@ -105,14 +106,16 @@ class ChessBoard():
         #check for castle
         if move in self.__special_moves["short_castle"]:
             rook = self.__pieces_list[end[0]][end[1] + 1]
-            rook.move((end[0], end[1] - 1))
-            self.__pieces_list[end[0]][end[1] - 1] = rook
-            self.__pieces_list[end[0]][end[1] + 1] = "x"
+            if rook != "x":
+                rook.move((end[0], end[1] - 1))
+                self.__pieces_list[end[0]][end[1] - 1] = rook
+                self.__pieces_list[end[0]][end[1] + 1] = "x"
         elif move in self.__special_moves["long_castle"]:
             rook = self.__pieces_list[end[0]][end[1] - 2]
-            rook.move((end[0], end[1] + 1))
-            self.__pieces_list[end[0]][end[1] + 1] = rook
-            self.__pieces_list[end[0]][end[1] - 2] = "x"
+            if rook != "x":
+                rook.move((end[0], end[1] + 1))
+                self.__pieces_list[end[0]][end[1] + 1] = rook
+                self.__pieces_list[end[0]][end[1] - 2] = "x"
 
         self.__game_history.addMove(move)
         
@@ -134,19 +137,21 @@ class ChessBoard():
             #check for castle
             if move in self.__special_moves["short_castle"]:
                 rook = self.__pieces_list[end[0]][end[1] - 1]
-                rook.move((end[0], end[1] + 1))
-                self.__pieces_list[end[0]][end[1] - 1] = "x"
-                self.__pieces_list[end[0]][end[1] + 1] = rook
+                if rook != "x":
+                    rook.undoMove((end[0], end[1] + 1))
+                    self.__pieces_list[end[0]][end[1] - 1] = "x"
+                    self.__pieces_list[end[0]][end[1] + 1] = rook
             elif move in self.__special_moves["long_castle"]:
                 rook = self.__pieces_list[end[0]][end[1] + 1]
-                rook.move((end[0], end[1] - 2))
-                self.__pieces_list[end[0]][end[1] - 2] = rook
-                self.__pieces_list[end[0]][end[1] + 1] = "x"
+                if rook != "x":
+                    rook.undoMove((end[0], end[1] - 2))
+                    self.__pieces_list[end[0]][end[1] - 2] = rook
+                    self.__pieces_list[end[0]][end[1] + 1] = "x"
 
             if not soft:
                 self.drawBoard()
                 self.drawPieces()
-                self.endTurn()
+                self.endTurn(should_ai_move=False)
             
 
     def forward(self):
@@ -165,18 +170,20 @@ class ChessBoard():
 
             if move in self.__special_moves["short_castle"]:
                 rook = self.__pieces_list[end[0]][end[1] + 1]
-                rook.move((end[0], end[1] - 1))
+                if rook != "x":
+                    rook.move((end[0], end[1] - 1))
                 self.__pieces_list[end[0]][end[1] - 1] = rook
                 self.__pieces_list[end[0]][end[1] + 1] = "x"
             elif move in self.__special_moves["long_castle"]:
                 rook = self.__pieces_list[end[0]][end[1] - 2]
-                rook.move((end[0], end[1] + 1))
+                if rook != "x":
+                    rook.move((end[0], end[1] + 1))
                 self.__pieces_list[end[0]][end[1] + 1] = rook
                 self.__pieces_list[end[0]][end[1] - 2] = "x"
 
             self.drawBoard()
             self.drawPieces()
-            self.endTurn()
+            self.endTurn(should_ai_move=False)
 
     def checkForChecks(self, color): #color = color of king to check
         check = False
@@ -234,7 +241,7 @@ class ChessBoard():
         return valid_moves
 
 
-    def endTurn(self):
+    def endTurn(self,should_ai_move = True):
         if self.__player_turn == "w":
             self.__player_turn = "b"
         else:
@@ -261,5 +268,68 @@ class ChessBoard():
             self.__game_ended = True
         else:
             self.__game_ended = False
+
+        if should_ai_move and self.__againstAi:
+            self.drawBoard()
+            self.drawPieces()
+            self.__chess_bot.AiToMove()
+            self.drawBoard()
+            self.drawPieces()
+            
         
+class ChessBot():
+    def __init__(self, chess_board:ChessBoard) -> None:
+        self.__chess_board = chess_board
+        self.__piece_points = {"Pawn":1,"Knight":3,"Bishop":3,"Rook":5,"Queen":9,"King":999999}
+        self.__my_turn = {True:'b',False:'w'}
+    def AiToMove(self):
+        valid_moves = {move: 0 for move in self.__chess_board.checkForValidMoves(self.__my_turn[True])}
+        for move,points in valid_moves.items():
+            points = self.getPointsForMove(move, 2, True)
+            valid_moves[move] = points
         
+        best_points = -999
+        best_moves = []
+
+        for move,points in valid_moves.items():
+            if points > best_points:
+                best_points = points
+                best_moves.clear()
+                best_moves.append(move)
+            if points == best_points:
+                best_moves.append(move)
+
+        if len(best_moves) > 1:
+            self.__chess_board.makeMove(random.choice(best_moves))
+        else:
+            self.__chess_board.makeMove(best_moves[0])
+        self.__chess_board.endTurn(should_ai_move=False)
+        
+                    
+    def getPointsForMove(self, move:SavedMove, depth, myTurn:bool):
+        points = 0
+        if myTurn:
+            mod = 1
+        else:
+            mod = -2
+
+
+        self.__chess_board.makeMove(move)
+
+        if move.getCaptured() != "x":
+            points += mod* self.__piece_points[move.getCaptured().getName()]
+
+        if depth > 0:
+            points_list =[]
+            new_valid_moves = self.__chess_board.checkForValidMoves(self.__my_turn[not myTurn])
+            if len(new_valid_moves) > 0:
+                for new_move in new_valid_moves:
+                    points_list.append(self.getPointsForMove(new_move, depth-1, not myTurn))
+                if myTurn:
+                    points += min(points_list)
+                else:
+                    points += max(points_list)
+
+        self.__chess_board.undo(soft=True)
+
+        return points

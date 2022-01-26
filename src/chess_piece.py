@@ -199,6 +199,12 @@ class SavedMove():
         return self.__moved_piece
     def __eq__(self,other):
         if isinstance(other, SavedMove):
-            return self.__start_position == other.getStart() and self.__end_position == other.getEnd()
+            return hash(self) == hash(other)
 
-
+    def __hash__(self) -> int:
+        names = {"Pawn":1,"Knight":2,"Bishop":3,"Rook":4,"Queen":5,"King":6}
+        number = 10000*self.__start_position[0] + 1000*self.__start_position[1] + 100*self.__end_position[0] + 10*self.__end_position[1]
+        if self.__captured_piece != "x":
+            number += names[self.__captured_piece.getName()]
+        number += 100000 * names[self.__moved_piece.getName()]
+        return number
